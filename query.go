@@ -1077,14 +1077,30 @@ func Screenshot(sel interface{}, picbuf *[]byte, opts ...QueryOption) QueryActio
 			return ErrInvalidBoxModel
 		}
 
+		var docNode []*cdp.Node
+		if err := Nodes(`html`, &docNode, ByQuery).Do(ctx); err != nil {
+			return err
+		}
+		if len(docNode) < 1 {
+			return errors.New("could not retrieve doc node")
+		}
+
+		docBox, err := dom.GetBoxModel().WithNodeID(docNode[0].NodeID).Do(ctx)
+		if err != nil {
+			return err
+		}
+		if len(docBox.Margin) != 8 {
+			return ErrInvalidBoxModel
+		}
+
 		// take screenshot of the box
 		buf, err := page.CaptureScreenshot().
 			WithFormat(page.CaptureScreenshotFormatPng).
 			WithClip(&page.Viewport{
 				// Round the dimensions, as otherwise we might
 				// lose one pixel in either dimension.
-				X:      math.Round(box.Margin[0]),
-				Y:      math.Round(box.Margin[1]),
+				X:      math.Round(box.Margin[0] - docBox.Margin[0]),
+				Y:      math.Round(box.Margin[1] - docBox.Margin[1]),
 				Width:  math.Round(box.Margin[4] - box.Margin[0]),
 				Height: math.Round(box.Margin[5] - box.Margin[1]),
 				// This seems to be necessary? Seems to do the
